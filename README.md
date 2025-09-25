@@ -14,11 +14,19 @@
 - Python 3.9+
 - Python packages: `torch`, `torchvision`, `Pillow`, `numpy`, `opencv-python`, `scikit-image` (install via `pip install torch torchvision Pillow numpy opencv-python scikit-image`).
 - The first run may download pretrained weights if they are not cached yet.
-- Provide at least 10 valid image paths (designed for ~50).
+- Provide at least 10 valid image paths (designed for ~50). When using the default library mode, the script scans `photo_library/` recursively for supported formats.
 
 ## Usage
+Place your candidate photos inside the `photo_library/` directory (or supply a newline-delimited file of paths) and run:
+
 ```bash
-python photo_dump_planner.py /path/to/img1.jpg /path/to/img2.jpg ... --output preview.jpg
+python photo_dump_planner.py --library photo_library --output preview.jpg
+```
+
+You can still pass explicit paths to override the library discovery:
+
+```bash
+python photo_dump_planner.py img1.jpg img2.jpg ... --output preview.jpg
 ```
 
 Notes:

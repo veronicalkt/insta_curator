@@ -393,13 +393,45 @@ def create_preview(results: Sequence[ImageAnalysisResult], caption: str, output_
     collage.save(output_path)
 
 
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".tif", ".tiff", ".webp"}
+
+
+def _load_library_images(library_path: Path) -> List[Path]:
+    """Load image paths from a directory or newline-delimited file."""
+
+    if not library_path.exists():
+        return []
+
+    if library_path.is_dir():
+        candidates = sorted(
+            path for path in library_path.rglob("*") if path.is_file() and path.suffix.lower() in IMAGE_EXTENSIONS
+        )
+        return candidates
+
+    lines = [line.strip() for line in library_path.read_text().splitlines() if line.strip()]
+    resolved: List[Path] = []
+    for line in lines:
+        candidate = Path(line)
+        if not candidate.is_absolute():
+            candidate = (library_path.parent / candidate).resolve()
+        if candidate.exists() and candidate.is_file():
+            resolved.append(candidate)
+    return resolved
+
+
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Curate a photo dump from 50 images")
     parser.add_argument(
         "images",
-        nargs="+",
+        nargs="*",
         type=Path,
-        help="Paths to image files (expects at least 10, ideally 50)",
+        help="Optional explicit image paths (overrides library discovery)",
+    )
+    parser.add_argument(
+        "--library",
+        type=Path,
+        default=Path("photo_library"),
+        help="Directory or newline-delimited file listing photos",
     )
     parser.add_argument(
         "--output",
@@ -412,12 +444,25 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
-    image_paths = [path for path in args.images if path.exists()]
-    if len(image_paths) < 10:
-        raise SystemExit("Please provide at least 10 valid image paths")
 
-    print(f"Analyzing {len(image_paths)} images…")
-    results = [analyze_image(path) for path in image_paths]
+    if args.images:
+        image_paths = [path for path in args.images if path.exists() and path.is_file()]
+    else:
+        image_paths = _load_library_images(args.library)
+
+    # Deduplicate while preserving order.
+    seen: Dict[Path, None] = {}
+    unique_paths: List[Path] = []
+    for path in image_paths:
+        if path not in seen:
+            seen[path] = None
+            unique_paths.append(path)
+
+    if len(unique_paths) < 10:
+        raise SystemExit("Please provide at least 10 valid image paths (library or CLI)")
+
+    print(f"Analyzing {len(unique_paths)} images…")
+    results = [analyze_image(path) for path in unique_paths]
     results.sort(key=lambda item: item.aesthetic_score, reverse=True)
 
     print("Selecting top shots…")
